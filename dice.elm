@@ -75,6 +75,13 @@ ndk n d = case n of
 fate = ndk 4 dFate
 bias = always -7 `plus` ndk 2 d6
 
+-- Outcomes in new system
+results = [-1..2]
+resultFailure = -1
+resultPartial = 0
+resultSuccess = 1
+resultWithstyle = 2
+
 
 -- Visualization
 -- I assume D.keys returns keys in sorted order.
@@ -137,8 +144,6 @@ diagram name d =
       txt = centered (monospace . bold <| toText name) |>
             container 60 50 middle
   in flow right [ txt, spacer 15 1, bar ]
-{-   |> container 500 100 middle |> color white
-     |> container 502 102 middle |> color black -}
 
 stack : Int -> [Element] -> Element
 stack sp elts = flow down <| intersperse (spacer 1 sp) elts
