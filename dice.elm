@@ -106,15 +106,14 @@ scaleXY x y = matrix x 0 0 y 0 0
 scaleX x = scaleXY x 1.0
 scaleY y = scaleXY 1.0 y
 
-graphBar : [(Int,Float)] -> Form
-graphBar l =
-  let foo (v,p) rest =
-        group [ rect p 1 |> filled (intColor v) |> move (p/2, 0)
-              , rest |> move (p, 0) ]
-  in foldr foo (group []) l
-
-graph : Float -> Dist -> Form
-graph horiz d = toList d |> map (\(v,p) -> (v,p*horiz)) |> graphBar
+graph : Float -> Float -> Dist -> Form
+graph w h d =
+  let part (v,p) rest =
+        group [ rect (p*w) h |> filled (intColor v) |> move ((p*w)/2, h/2)
+              , toText (show v) |> bold . Text.height (h*0.36) |> toForm . text
+                |> move ((p*w)/2, h/2)
+              , rest |> move (p*w, 0) ]
+  in toList d |> foldr part (group []) |> move (-w/2, -h/2)
 
 transform : Transform2D -> Form -> Form
 transform t x = groupTransform t [x]
@@ -127,16 +126,19 @@ diagrams = [("2d6-7", bias),
 
 diagram : String -> Dist -> Element
 diagram name d =
-  let bar = collage 300 50
-            [ graph 6 d |> scale 50 |> move (-150, 0)
-            , rect 300 50 |> outlined (solid black) ]
+  let bar = collage 400 50
+            [ graph 400 50 d
+            , rect 400 50 |> outlined (solid black) ]
       txt = centered (bold <| toText name) |>
-            container 100 50 middle
-  in flow right [ txt, bar ]
-     |> container 500 100 middle |> color white
-     |> container 502 102 middle |> color black
+            container 60 50 middle
+  in flow right [ txt, spacer 15 1, bar ]
+{-   |> container 500 100 middle |> color white
+     |> container 502 102 middle |> color black -}
+
+stack : Int -> [Element] -> Element
+stack sp elts = flow down <| intersperse (spacer 1 sp) elts
 
 -- Program
-main = flow down <| map (uncurry diagram) diagrams
+main = stack 10 <| map (uncurry diagram) diagrams
 
 --main = plainText <| show <| bounds <| ndk 2 d6
