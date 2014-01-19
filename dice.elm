@@ -1,5 +1,9 @@
-import Dict as D
 import Dict (Dict)
+import Dict as D
+import Graphics.Input as Input
+import Regex (Regex)
+import Regex as Re
+import String
 import Transform2D (Transform2D, matrix, identity)
 
 tau : Float
@@ -63,6 +67,12 @@ plus x y = let app (xv,xp) (yv,yp) = (xv + yv, xp * yp)
               toList y |> map (app xe))
               |> fromList
 
+negate : Dist -> Dist
+negate d = toList d |> map (\(x,p) -> (-x,p)) |> fromList
+
+sumDists : [Dist] -> Dist
+sumDists = foldr plus (always 0)
+
 d6 = uniform [1..6]
 dFate = uniform [-1..1]
 
@@ -82,6 +92,27 @@ resultPartial = 0
 resultSuccess = 1
 resultWithstyle = 2
 
+
+-- Parsing dice, quick-and-dirty.
+dieRe : Regex
+-- groups: [sign, number, rank]
+dieRe = Re.pattern "([-+])? *([1-9][0-9]*)(?:d([1-9][0-9]*))?"
+
+parseDice : String -> Dist
+parseDice s = sumDists <| map parseDie <| Re.findAll dieRe s
+
+parseDie : Re.Match -> Dist
+parseDie m = let [signM, Just numS, rankM] = m.submatches
+                 sign = case signM of
+                          Just "-" -> negate
+                          _ -> id
+                 intify = maybe 0 id . String.toInt
+                 num = intify numS
+                 pRank x = uniform [1 .. intify x `max` 1]
+             in sign <|
+                (case rankM of
+                   Nothing -> always num
+                   Just r -> ndk num (pRank r))
 
 -- Visualization
 -- I assume D.keys returns keys in sorted order.
@@ -130,12 +161,8 @@ graph w h d =
 transform : Transform2D -> Form -> Form
 transform t x = groupTransform t [x]
 
--- Diagrams
-diagrams : [(String, Dist)]
-diagrams = [("2d6-7", bias),
-            ("Fate", fate),
-            ("2d6", ndk 2 d6)]
 
+-- Diagramming distributions
 diagram : String -> Dist -> Element
 diagram name d =
   let bar = collage 400 50
@@ -148,7 +175,17 @@ diagram name d =
 stack : Int -> [Element] -> Element
 stack sp elts = flow down <| intersperse (spacer 1 sp) elts
 
+-- Controls
+(distField, distInput) = Input.field "Write some dice here!"
+
+-- Diagrams
+diagrams : [Signal (String, Dist)]
+diagrams = [constant ("Fate", fate),
+            constant ("2d6-7", bias),
+            (,) "User" . parseDice <~ distInput]
+
 -- Program
-main = stack 10 <| map (uncurry diagram) diagrams
+main = (map (lift <| uncurry diagram) diagrams ++ [distField])
+       |> combine |> lift (stack 10)
 
 --main = plainText <| show <| bounds <| ndk 2 d6
