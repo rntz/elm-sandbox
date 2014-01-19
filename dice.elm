@@ -108,11 +108,16 @@ scaleY y = scaleXY 1.0 y
 
 graph : Float -> Float -> Dist -> Form
 graph w h d =
-  let part (v,p) rest =
-        group [ rect (p*w) h |> filled (intColor v) |> move ((p*w)/2, h/2)
-              , toText (show v) |> bold . Text.height (h*0.36) |> toForm . text
-                |> move ((p*w)/2, h/2)
-              , rest |> move (p*w, 0) ]
+  let style = Text.height (h*0.36)
+      part (v,p) rest =
+        let txt = text . style . toText <| show v
+            -- If not enough space for text plus 2px, omit it.
+            txtF = if 2 + widthOf txt > floor (p*w)
+                   then group []
+                   else txt |> toForm |> move (p*w/2, h/2)
+        in group [ rect (p*w) h |> filled (intColor v) |> move ((p*w)/2, h/2)
+                 , txtF
+                 , rest |> move (p*w, 0) ]
   in toList d |> foldr part (group []) |> move (-w/2, -h/2)
 
 transform : Transform2D -> Form -> Form
@@ -129,7 +134,7 @@ diagram name d =
   let bar = collage 400 50
             [ graph 400 50 d
             , rect 400 50 |> outlined (solid black) ]
-      txt = centered (bold <| toText name) |>
+      txt = centered (monospace . bold <| toText name) |>
             container 60 50 middle
   in flow right [ txt, spacer 15 1, bar ]
 {-   |> container 500 100 middle |> color white
