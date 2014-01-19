@@ -121,15 +121,21 @@ transform : Transform2D -> Form -> Form
 transform t x = groupTransform t [x]
 
 -- Diagrams
-diagrams : [Dist]
-diagrams = [bias, fate, ndk 2 d6]
+diagrams : [(String, Dist)]
+diagrams = [("2d6 - 7", bias),
+            ("Fate", fate),
+            ("2d6", ndk 2 d6)]
 
-diagram : Dist -> Element
-diagram d = collage 300 50
+diagram : String -> Dist -> Element
+diagram name d =
+  let bar = collage 300 50
             [ graph 6 d |> scale 50 |> move (-150, 0)
             , rect 300 50 |> outlined (solid black) ]
-            |> container 500 100 middle |> color white
-            |> container 502 102 middle |> color black
+      txt = centered (bold <| toText name) |>
+            container 100 50 middle
+  in flow right [ txt, bar ]
+     |> container 500 100 middle |> color white
+     |> container 502 102 middle |> color black
 
 {-
 -- (stack h sp) vertically stacks forms which are h high with sp spacing.
@@ -139,7 +145,7 @@ stack h sp = mapi (\i f -> moveY (toFloat i * -(h+sp)) f)
 -}
 
 -- Program
-main = flow down <| map diagram diagrams
+main = flow down <| map (uncurry diagram) diagrams
 
 {-
 main = collage 410 310
