@@ -121,24 +121,36 @@ transform : Transform2D -> Form -> Form
 transform t x = groupTransform t [x]
 
 -- Diagrams
-diagrams : [Form]
-diagrams = [ bias |> graph 6
-           , fate |> graph 6
-           , ndk 2 d6 |> graph 6 ]
+diagrams : [Dist]
+diagrams = [bias, fate, ndk 2 d6]
 
+diagram : Dist -> Element
+diagram d = collage 300 50
+            [ graph 6 d |> scale 50 |> move (-150, 0)
+            , rect 300 50 |> outlined (solid black) ]
+            |> container 500 100 middle |> color white
+            |> container 502 102 middle |> color black
+
+{-
 -- (stack h sp) vertically stacks forms which are h high with sp spacing.
+-- the stack grows down!
 stack : Float -> Float -> [Form] -> [Form]
-stack h sp = mapi (\i f -> moveY (toFloat i * (h+sp)) f)
+stack h sp = mapi (\i f -> moveY (toFloat i * -(h+sp)) f)
+-}
 
 -- Program
+main = flow down <| map diagram diagrams
+
+{-
 main = collage 410 310
        [ rect 410 310 |> outlined (solid black)
        , diagrams
-         |> stack 1 0.1
-         |> group |> move (-0.5, -0.5)
-         |> scale 50
+         -- Convert them to a stack whose upper-left corner is (0,0)
+         |> map (moveY -0.5) |> stack 1 0.1
+         -- Group them & move them to the upper-left corner of collage
+         |> group |> scale 50 |> move (-200, 150)
        ]
-
+-}
 {-
 main = collage 410 210
        [ ndk 5 d6 `plus` always -17 |> graph 1
