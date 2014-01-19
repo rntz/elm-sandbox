@@ -1,5 +1,9 @@
 import Dict as D
 import Dict (Dict)
+import Transform2D (Transform2D, matrix, identity, scale)
+
+tau : Float
+tau = 2 * pi
 
 iterate : Int -> (a -> a) -> a -> a
 iterate n f x = if 0 == n then x
@@ -43,7 +47,7 @@ k >>= f = k |> concatMap (\(res, resP) ->
           f res |> map (\(x, xP) -> (x, xP * resP)))
 -}
 
-
+
 -- Dice
 plus : Dist -> Dist -> Dist
 plus x y = let app (xv,xp) (yv,yp) = (xv + yv, xp * yp)
@@ -60,9 +64,44 @@ ndk n d = case n of
             1 -> d
             _ -> plus d (ndk (n-1) d)
 
-
--- Visualization
 
-
+-- Visualization
+-- I assume D.keys returns keys in sorted order.
+bounds : Dist -> (Int, Int)
+bounds d = let k = D.keys d in (head k, last k)
+
+-- the numbers 0 to 10 form the rainbow
+intColor : Int -> Color
+intColor i = hsv ((tau * toFloat i) / 7.0) 1 1
+
+scaleXY : Float -> Float -> Transform2D
+scaleXY x y = matrix x 0 0 y 0 0
+scaleX x = scaleXY x 1.0
+scaleY y = scaleXY 1.0 y
+
+graphRaw : Dist -> Form
+graphRaw d =
+  let foo (v,p) rest =
+        group [ rect p 1 |> filled (intColor v) |> move (p/2,0)
+              , rest |> move (p,0) ]
+  in toList d |> foldr foo (group [])
+
+graph : Float -> Float -> Dist -> Form
+graph w h d = rect w h |> filled red
+
+transform : Transform2D -> Form -> Form
+transform t x = groupTransform t [x]
+
+-- Diagrams
+{-diagrams : [Form]
+diagrams = [ d6 |> graphRaw
+           , -}
+
 -- Program
-main = plainText <| show (ndk 2 d6)
+--main = plainText <| show <| bounds <| ndk 2 d6
+main = collage 200 200
+       [ d6 |> graphRaw
+         |> move (-0.5, 0)
+         |> transform (scaleXY 100 100)
+       , rect 200 200 |> outlined (solid black)
+       ]
