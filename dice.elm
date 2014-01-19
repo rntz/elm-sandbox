@@ -21,8 +21,7 @@ mapi f l = map (uncurry f) (enumerate l)
 -- Invariant: probabilities sum to 1.
 type Dist = Dict Int Float
 
--- TODO: permit duplicates.
--- normalizes
+-- Normalizes & deduplicates.
 fromList : [(Int, Float)] -> Dist
 fromList l = let total = sum <| map snd l
                  conj (xv,xp) d =
@@ -98,8 +97,8 @@ intColor : Int -> Color
 intColor i =
   let j = toFloat (abs i)
       hue = turns (j / 7.0)
-      sat = 1 - weird (1/2) 1 j
-      val = weird (4/5) 6 j
+      sat = 1 - weird (1/3) 1 j
+      val = clamp 1 1 <| weird (4/5) 6 j
   in hsv hue sat val
 
 scaleXY : Float -> Float -> Transform2D
@@ -122,7 +121,7 @@ transform t x = groupTransform t [x]
 
 -- Diagrams
 diagrams : [(String, Dist)]
-diagrams = [("2d6 - 7", bias),
+diagrams = [("2d6-7", bias),
             ("Fate", fate),
             ("2d6", ndk 2 d6)]
 
@@ -137,32 +136,7 @@ diagram name d =
      |> container 500 100 middle |> color white
      |> container 502 102 middle |> color black
 
-{-
--- (stack h sp) vertically stacks forms which are h high with sp spacing.
--- the stack grows down!
-stack : Float -> Float -> [Form] -> [Form]
-stack h sp = mapi (\i f -> moveY (toFloat i * -(h+sp)) f)
--}
-
 -- Program
 main = flow down <| map (uncurry diagram) diagrams
 
-{-
-main = collage 410 310
-       [ rect 410 310 |> outlined (solid black)
-       , diagrams
-         -- Convert them to a stack whose upper-left corner is (0,0)
-         |> map (moveY -0.5) |> stack 1 0.1
-         -- Group them & move them to the upper-left corner of collage
-         |> group |> scale 50 |> move (-200, 150)
-       ]
--}
-{-
-main = collage 410 210
-       [ ndk 5 d6 `plus` always -17 |> graph 1
-         |> move (-0.5, 0)
-         |> transform (scaleXY 380 100)
-       , rect 410 210 |> outlined (solid black)
-       ]
--}
 --main = plainText <| show <| bounds <| ndk 2 d6
