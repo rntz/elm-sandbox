@@ -1,24 +1,35 @@
-type Dist a = [(a, Float)]
+import Dict as D
+import Dict (Dict)
 
--- for now, just normalizes. here in case we change def'n of Dist later.
--- no duplicates permitted
-fromList : [(a, Float)] -> Dist a
+iterate : Int -> (a -> a) -> a -> a
+iterate n f x = if 0 == n then x
+                else f (iterate (n-1) f x)
+
+-- Invariant: probabilities sum to 1.
+type Dist = Dict Int Float
+
+-- TODO: permit duplicates.
+-- normalizes
+fromList : [(Int, Float)] -> Dist
 fromList l = let total = sum <| map snd l
-             in l |> map (\ (a,p) -> (a, p / total))
+                 conj (xv,xp) d =
+                     let pp = D.findWithDefault 0 xv d
+                     in D.insert xv (pp + (xp / total)) d
+             in l |> foldl conj D.empty
 
-toList : Dist a -> [(a, Float)]
-toList x = x
+toList : Dist -> [(Int, Float)]
+toList = D.toList
 
-always : a -> Dist a
-always x = [(x,1)]
+always : Int -> Dist
+always x = fromList [(x,1)]
 
-uniform : [a] -> Dist a
+uniform : [Int] -> Dist
 uniform xs = fromList <| map (\x -> (x,1)) xs
 
-chance : a -> Dist a -> Float
-chance x l = l |> filter (\(y,_) -> x == y)
-             |> map snd |> sum
+chance : Int -> Dist -> Float
+chance x d = D.findWithDefault 0.0 x d
 
+{-
 -- {Functor, Applicative, Monoid} Dist
 infixl 4 <$>
 infixl 4 <*>
@@ -30,19 +41,28 @@ fd <*> ad = let app (fv,fp) (av,ap) = (fv av, fp * ap)
             in fd |> concatMap (\f -> map (app f) ad)
 k >>= f = k |> concatMap (\(res, resP) ->
           f res |> map (\(x, xP) -> (x, xP * resP)))
+-}
 
--- Some useful probability distributions
-joint : Dist a -> Dist b -> Dist (a,b)
-joint x y = (,) <$> x <*> y
-
-replicateM : Int -> Dist a -> Dist [a]
-replicateM n x = case n of
-                   0 -> pure []
-                   _ -> (::) <$> x <*> replicateM (n-1) x
-
-ndk : Int -> Dist number -> Dist number
-ndk n k = sum <$> replicateM n k
+
+-- Dice
+plus : Dist -> Dist -> Dist
+plus x y = let app (xv,xp) (yv,yp) = (xv + yv, xp * yp)
+           in toList x |> concatMap (\xe ->
+              toList y |> map (app xe))
+              |> fromList
 
 d6 = uniform [1..6]
+dFate = uniform [-1..1]
 
-main = plainText <| show d6
+ndk : Int -> Dist -> Dist
+ndk n d = case n of
+            0 -> always 0
+            1 -> d
+            _ -> plus d (ndk (n-1) d)
+
+
+-- Visualization
+
+
+-- Program
+main = plainText <| show (ndk 2 d6)
