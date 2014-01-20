@@ -183,7 +183,8 @@ intColor : Int -> Color
 intColor i =
   let j = toFloat (abs i)
       hue = turns (j / 7.0)
-      sat = 1 - weird 0.45 1 j
+      --sat = 1 - weird 0.45 1 j
+      sat = 1 - weird (1/3) 1 j
       val = clamp 1 1 <| weird (4/5) 6 j
   in hsv hue sat val
 
@@ -242,10 +243,10 @@ diagrams = [ constant ("Fate", fate)
            , constant ("Fate vs", fatevs)
            -- , constant ("2d6-7", bias)
            , (,) "User" <~ userModDist
-           , (,) "Lo" <~ (overlay <~ userLo ~ userModDist)
            , (,) "Hi" <~ (overlay <~ userHi ~ userModDist)
-           , (,) "Fate" . overlay [-1,0,2] . plus fate . always <~ userMod
+           , (,) "Lo" <~ (overlay <~ userLo ~ userModDist)
            , (,) "Fate vs" . overlay [-1,0,2] . plus fatevs . always <~ userMod
+           , (,) "Fate" . overlay [-1,0,2] . plus fate . always <~ userMod
            -- , (,) "AW" . overlay awOverlay <~ userModDist
            ]
 
