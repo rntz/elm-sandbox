@@ -151,7 +151,7 @@ intColor : Int -> Color
 intColor i =
   let j = toFloat (abs i)
       hue = turns (j / 7.0)
-      sat = 1 - weird (1/3) 1 j
+      sat = 1 - weird 0.45 1 j
       val = clamp 1 1 <| weird (4/5) 6 j
   in hsv hue sat val
 
@@ -181,9 +181,9 @@ transform t x = groupTransform t [x]
 -- Diagramming distributions
 diagram : String -> Dist -> Element
 diagram name d =
-  let bar = collage 400 50
-            [ graph 400 50 d
-            , rect 400 50 |> outlined (solid black) ]
+  let bar = collage 600 50
+            [ graph 600 50 d
+            , rect 600 50 |> outlined (solid black) ]
       txt = centered (monospace . bold <| toText name) |>
             container 60 50 middle
   in flow right [ txt, spacer 15 1, bar ]
