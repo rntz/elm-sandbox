@@ -1,9 +1,11 @@
 import Dict (Dict)
 import Dict as D
 import Graphics.Input as Input
+import Maybe
 import Regex (Regex)
 import Regex as Re
 import String
+import String (toInt)
 import Transform2D (Transform2D, matrix, identity)
 
 tau : Float
@@ -95,24 +97,38 @@ resultWithstyle = 2
 
 -- Parsing dice, quick-and-dirty.
 dieRe : Regex
--- groups: [sign, number, rank]
-dieRe = Re.pattern "([-+])? *([1-9][0-9]*)(?:d([1-9][0-9]*))?"
+-- groups: [sign, number, kind]
+dieRe = Re.pattern <|
+        "([-+])? *([0-9]+)(?:d(" ++ kindRes ++ "))?"
+-- a kind can be a number of sides, F for fate, or a list of values
+kindRes = "[0-9]+|F|\\[ *(?:[-+]? *[0-9]+[ ,]*)+\\]"
+intRe = Re.pattern "[-+]? *[0-9]+"
 
 parseDice : String -> Dist
 parseDice s = sumDists <| map parseDie <| Re.findAll dieRe s
 
 parseDie : Re.Match -> Dist
-parseDie m = let [signM, Just numS, rankM] = m.submatches
+parseDie m = let [signM, Just numS, kindM] = m.submatches
                  sign = case signM of
                           Just "-" -> negate
                           _ -> id
-                 intify = maybe 0 id . String.toInt
+                 intify = maybe 0 id . toInt
                  num = intify numS
-                 pRank x = uniform [1 .. intify x `max` 1]
+                 --pKind x = uniform [1 .. intify x `max` 1]
              in sign <|
-                (case rankM of
+                (case kindM of
                    Nothing -> always num
-                   Just r -> ndk num (pRank r))
+                   Just r -> ndk num (parseKind r))
+
+parseKind : String -> Dist
+parseKind s =
+    if | "F" == s -> dFate
+       | "[" == String.left 1 s ->
+           (uniform . justs . map (toInt . .match) <|
+            Re.findAll intRe s)
+       | otherwise -> case toInt s of
+                       Just n -> uniform [1 .. n `max` 1]
+                       Nothing -> always 0
 
 -- Visualization
 -- I assume D.keys returns keys in sorted order.
@@ -181,6 +197,7 @@ stack sp elts = flow down <| intersperse (spacer 1 sp) elts
 -- Diagrams
 diagrams : [Signal (String, Dist)]
 diagrams = [constant ("Fate", fate),
+            constant ("Fate 5", ndk 5 dFate),
             constant ("2d6-7", bias),
             (,) "User" . parseDice <~ distInput]
 
