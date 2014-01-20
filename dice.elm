@@ -9,6 +9,13 @@ import String (toInt)
 import Transform2D (Transform2D, matrix, identity)
 
 -- Utilities
+infixl 0 ~>
+(~>) : Signal a -> (a -> b) -> Signal b
+x ~> f = lift f x
+
+fromMaybe : a -> Maybe a -> a
+fromMaybe x = maybe x id
+
 tau : Float
 tau = 2 * pi
 
@@ -99,13 +106,14 @@ ndk n d = case n of
             _ -> d `plus` ndk (n-1) d
 
 fate = ndk 4 dFate
+fatevs = plus fate fate         -- fate == negate fate
 bias = always -7 `plus` ndk 2 d6
 
 -- Applying overlays to distributions
 type Overlay = [Int]
 
 classify : Overlay -> Int -> Int
-classify o i = maybe (length o) id <| index (\x -> i <= x) o
+classify o i = fromMaybe (length o) <| index (\x -> i <= x) o
 
 overlay : Overlay -> Dist -> Dist
 overlay o = mapDist (classify o)
@@ -133,7 +141,7 @@ parseDie m = let [signM, Just numS, kindM] = m.submatches
                  sign = case signM of
                           Just "-" -> negate
                           _ -> id
-                 intify = maybe 0 id . toInt
+                 intify = fromMaybe 0 . toInt
                  num = intify numS
                  --pKind x = uniform [1 .. intify x `max` 1]
              in sign <|
@@ -150,6 +158,13 @@ parseKind s =
        | otherwise -> case toInt s of
                        Just n -> uniform [1 .. n `max` 1]
                        Nothing -> always 0
+
+parseOverlay : String -> Maybe Overlay
+parseOverlay s = let ms = Re.findAll intRe s
+                     ns = justs <| map (toInt . .match) ms
+                 in if length ms == length ns && length ns > 0
+                    then Just ns
+                    else Nothing
 
 
 -- Visualization tools
@@ -202,29 +217,45 @@ diagram name d =
             [ graph 600 50 d
             , rect 600 50 |> outlined (solid black) ]
       txt = toText name |> monospace . bold |> centered |>
-            container 60 50 middle
+            container 70 50 midRight
   in flow right [ txt, spacer 15 1, bar ]
 
 stack : Int -> [Element] -> Element
 stack sp elts = flow down <| intersperse (spacer 1 sp) elts
 
 -- Controls
-(distField, distInput) = Input.field "Write some dice here!"
-userDist = parseDice <~ distInput
+(diceField, diceInput) = Input.field "Dice"
+(modField, modInput) = Input.field "Modifier"
+(loField, loInput) = Input.field "Lo Overlay"
+(hiField, hiInput) = Input.field "Hi Overlay"
+
+userDist = parseDice . (\x -> if x == "" then "2d6" else x) <~ diceInput
+userMod = modInput ~> fromMaybe 0 . toInt
+userLo = loInput ~> fromMaybe loOverlay . parseOverlay
+userHi = hiInput ~> fromMaybe hiOverlay . parseOverlay
+
+userModDist = plus <~ userDist ~ (always <~ userMod)
 
 -- Diagrams
 diagrams : [Signal (String, Dist)]
-diagrams = [constant ("Fate", fate),
-            constant ("Fate 5", ndk 5 dFate),
-            constant ("2d6-7", bias),
-            constant ("Fate", fate |> overlay [-1,0,2]),
-            (,) "User" <~ userDist,
-            (,) "Lo" . overlay loOverlay <~ userDist,
-            (,) "Hi" . overlay hiOverlay <~ userDist,
-            (,) "AW" . overlay awOverlay <~ userDist ]
+diagrams = [ constant ("Fate", fate)
+           , constant ("Fate vs", fatevs)
+           -- , constant ("2d6-7", bias)
+           , (,) "User" <~ userModDist
+           , (,) "Lo" <~ (overlay <~ userLo ~ userModDist)
+           , (,) "Hi" <~ (overlay <~ userHi ~ userModDist)
+           , (,) "Fate" . overlay [-1,0,2] . plus fate . always <~ userMod
+           , (,) "Fate vs" . overlay [-1,0,2] . plus fatevs . always <~ userMod
+           -- , (,) "AW" . overlay awOverlay <~ userModDist
+           ]
 
 -- Program
-main = (map (lift <| uncurry diagram) diagrams ++ [distField])
+main = (map (lift <| uncurry diagram) diagrams ++
+        [ beside (plainText "Dice: ") <~ diceField
+        , beside (plainText "Mod: ") <~ modField
+        , beside (plainText "Lo: ") <~ loField
+        , beside (plainText "Hi: ") <~ hiField
+        ])
        |> combine |> lift (stack 10)
 
 --main = plainText <| show <| bounds <| ndk 2 d6
