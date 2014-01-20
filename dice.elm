@@ -8,6 +8,7 @@ import String
 import String (toInt)
 import Transform2D (Transform2D, matrix, identity)
 
+-- Utilities
 tau : Float
 tau = 2 * pi
 
@@ -23,6 +24,17 @@ enumerate l = zip [0 .. length l - 1] l
 mapi : (Int -> a -> b) -> [a] -> [b]
 mapi f l = map (uncurry f) (enumerate l)
 
+takeWhile : (a -> Bool) -> [a] -> [a]
+takeWhile p l =
+    case l of [] -> []
+              x::xs -> if p x then x :: takeWhile p xs else []
+
+index : (a -> Bool) -> [a] -> Maybe Int
+index p =
+    let find i l = case l of [] -> Nothing
+                             x::xs -> if p x then Just i
+                                      else find (i+1) xs
+    in find 0
 
 -- Invariant: probabilities sum to 1.
 type Dist = Dict Int Float
@@ -69,8 +81,10 @@ plus x y = let app (xv,xp) (yv,yp) = (xv + yv, xp * yp)
               toList y |> map (app xe))
               |> fromList
 
-negate : Dist -> Dist
-negate d = toList d |> map (\(x,p) -> (-x,p)) |> fromList
+mapDist : (Int -> Int) -> Dist -> Dist
+mapDist f d = toList d |> map (\(x,p) -> (f x, p)) |> fromList
+
+negate = mapDist (\x -> -x)
 
 sumDists : [Dist] -> Dist
 sumDists = foldr plus (always 0)
@@ -87,12 +101,19 @@ ndk n d = case n of
 fate = ndk 4 dFate
 bias = always -7 `plus` ndk 2 d6
 
--- Outcomes in new system
-results = [-1..2]
-resultFailure = -1
-resultPartial = 0
-resultSuccess = 1
-resultWithstyle = 2
+-- Applying overlays to distributions
+type Overlay = [Int]
+
+classify : Overlay -> Int -> Int
+classify o i = maybe (length o) id <| index (\x -> i <= x) o
+
+overlay : Overlay -> Dist -> Dist
+overlay o = mapDist (classify o)
+
+-- Overlays for low & hi stakes
+loOverlay = [6, 7, 10]
+hiOverlay = [6, 9, 11]
+awOverlay = [6, 9]
 
 
 -- Parsing dice, quick-and-dirty.
@@ -130,11 +151,8 @@ parseKind s =
                        Just n -> uniform [1 .. n `max` 1]
                        Nothing -> always 0
 
--- Visualization
--- I assume D.keys returns keys in sorted order.
-bounds : Dist -> (Int, Int)
-bounds d = let k = D.keys d in (head k, last k)
 
+-- Visualization tools
 -- weird 2^i = 1/(1+i)
 --weird : Float -> Float
 --weird x = 1/(1 + lg x)
@@ -146,7 +164,6 @@ bounds d = let k = D.keys d in (head k, last k)
 weird : Float -> Float -> Float -> Float
 weird b r x = b^(x/r)
 
--- zero is black, farther away gets white
 intColor : Int -> Color
 intColor i =
   let j = toFloat (abs i)
@@ -159,6 +176,9 @@ scaleXY : Float -> Float -> Transform2D
 scaleXY x y = matrix x 0 0 y 0 0
 scaleX x = scaleXY x 1.0
 scaleY y = scaleXY 1.0 y
+
+transform : Transform2D -> Form -> Form
+transform t x = groupTransform t [x]
 
 graph : Float -> Float -> Dist -> Form
 graph w h d =
@@ -174,9 +194,6 @@ graph w h d =
                  , rest |> move (p*w, 0) ]
   in toList d |> foldr part (group []) |> move (-w/2, -h/2)
 
-transform : Transform2D -> Form -> Form
-transform t x = groupTransform t [x]
-
 
 -- Diagramming distributions
 diagram : String -> Dist -> Element
@@ -184,7 +201,7 @@ diagram name d =
   let bar = collage 600 50
             [ graph 600 50 d
             , rect 600 50 |> outlined (solid black) ]
-      txt = centered (monospace . bold <| toText name) |>
+      txt = toText name |> monospace . bold |> centered |>
             container 60 50 middle
   in flow right [ txt, spacer 15 1, bar ]
 
@@ -193,13 +210,18 @@ stack sp elts = flow down <| intersperse (spacer 1 sp) elts
 
 -- Controls
 (distField, distInput) = Input.field "Write some dice here!"
+userDist = parseDice <~ distInput
 
 -- Diagrams
 diagrams : [Signal (String, Dist)]
 diagrams = [constant ("Fate", fate),
             constant ("Fate 5", ndk 5 dFate),
             constant ("2d6-7", bias),
-            (,) "User" . parseDice <~ distInput]
+            constant ("Fate", fate |> overlay [-1,0,2]),
+            (,) "User" <~ userDist,
+            (,) "Lo" . overlay loOverlay <~ userDist,
+            (,) "Hi" . overlay hiOverlay <~ userDist,
+            (,) "AW" . overlay awOverlay <~ userDist ]
 
 -- Program
 main = (map (lift <| uncurry diagram) diagrams ++ [distField])
