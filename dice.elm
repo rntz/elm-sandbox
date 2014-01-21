@@ -88,6 +88,8 @@ plus x y = let app (xv,xp) (yv,yp) = (xv + yv, xp * yp)
               toList y |> map (app xe))
               |> fromList
 
+modify x = plus (always x)
+
 mapDist : (Int -> Int) -> Dist -> Dist
 mapDist f d = toList d |> map (\(x,p) -> (f x, p)) |> fromList
 
@@ -188,6 +190,12 @@ intColor i =
       val = clamp 1 1 <| weird (4/5) 6 j
   in hsv hue sat val
 
+intColorGray : Int -> Color
+intColorGray i =
+    let j = toFloat (abs i)
+        val = weird (2/3) 1 (j+0.2)
+    in hsv 0.0 0.0 val
+
 scaleXY : Float -> Float -> Transform2D
 scaleXY x y = matrix x 0 0 y 0 0
 scaleX x = scaleXY x 1.0
@@ -196,30 +204,66 @@ scaleY y = scaleXY 1.0 y
 transform : Transform2D -> Form -> Form
 transform t x = groupTransform t [x]
 
-graph : Float -> Float -> Dist -> Form
-graph w h d =
+type GraphConfig = { colors: Int -> Color
+                   , numbers: Bool }
+
+defaultCfg = { colors = intColor, numbers = True }
+
+graph : Float -> Float -> GraphConfig -> Dist -> Form
+graph w h cfg d =
   let style = Text.height (h*0.36)
       part (v,p) rest =
         let txt = text . style . toText <| show v
             -- If not enough space for text plus 2px, omit it.
-            txtF = if 2 + widthOf txt > floor (p*w)
+            txtF = if not cfg.numbers || 2 + widthOf txt > floor (p*w)
                    then group []
                    else txt |> toForm |> move (p*w/2, h/2)
-        in group [ rect (p*w) h |> filled (intColor v) |> move ((p*w)/2, h/2)
+        in group [ rect (p*w) h |> filled (cfg.colors v) |> move ((p*w)/2, h/2)
                  , txtF
                  , rest |> move (p*w, 0) ]
   in toList d |> foldr part (group []) |> move (-w/2, -h/2)
+
+-- Labeling elements
+-- widthFactor: Roughly, "how many characters maximum"
+-- heightFactor: Fraction of element height text should be
+type LabelConfig = { widthFactor: Float
+                   , heightFactor: Float }
+
+defaultLabelCfg = { widthFactor = 5.0
+                  , heightFactor = 0.28 }
+
+label : LabelConfig -> Text -> Element -> Element
+label cfg txt elem =
+  let txtH = cfg.heightFactor * toFloat (heightOf elem)
+      lblW = floor <| txtH * cfg.widthFactor
+      spc = floor <| txtH * 0.8
+      lbl = txt |> Text.height txtH |> righted
+            |> container lblW (heightOf elem) midRight
+  in flow right [ lbl, spacer spc 1, elem ]
+
+labelS s elem = label defaultLabelCfg (toText s) elem
 
 
 -- Diagramming distributions
 diagram : String -> Dist -> Element
 diagram name d =
   let bar = collage 600 50
-            [ graph 600 50 d
+            [ graph 600 50 defaultCfg d
             , rect 600 50 |> outlined (solid black) ]
-      txt = toText name |> monospace . bold |> centered |>
-            container 70 50 midRight
-  in flow right [ txt, spacer 15 1, bar ]
+      lblCfg = defaultLabelCfg
+  in label lblCfg (toText name |> monospace . bold) bar
+
+diagramFamily : [(String, Dist)] -> Element
+diagramFamily ds =
+    let maxLen = maximum <| map (String.length . fst) ds
+        cfg = { defaultCfg | colors <- intColor, numbers <- False }
+        lblCfg = { defaultLabelCfg | heightFactor <- 0.75
+                                   , widthFactor <- 0.8 * toFloat maxLen }
+        bar d = collage 300 20 [ graph 300 20 cfg d
+                               , rect 300 20 |> outlined (solid black)
+                               ]
+        line (s,d) = label lblCfg (toText s |> bold) (bar d)
+    in flow down <| map line ds
 
 stack : Int -> [Element] -> Element
 stack sp elts = flow down <| intersperse (spacer 1 sp) elts
@@ -235,7 +279,7 @@ userMod = modInput ~> fromMaybe 0 . toInt
 userLo = loInput ~> fromMaybe loOverlay . parseOverlay
 userHi = hiInput ~> fromMaybe hiOverlay . parseOverlay
 
-userModDist = plus <~ userDist ~ (always <~ userMod)
+userModDist = modify <~ userMod ~ userDist
 
 -- Diagrams
 diagrams : [Signal (String, Dist)]
@@ -250,13 +294,38 @@ diagrams = [ constant ("Fate", fate)
            -- , (,) "AW" . overlay awOverlay <~ userModDist
            ]
 
+modFamily : [Int] -> Overlay -> Dist -> Element
+modFamily ns o d =
+    ns |> map (\n -> (show n, overlay o (modify n d)))
+    |> diagramFamily
+
+typeFamily : Int -> Signal Element
+typeFamily n =
+    [ (,) "Hi" <~ (overlay <~ userHi ~ (modify n <~ userDist))
+    , (,) "Lo" <~ (overlay <~ userLo ~ (modify n <~ userDist))
+    , constant ("Fate vs", overlay [-1,0,2] <| modify n fatevs)
+    , constant ("Fate", overlay [-1,0,2] <| modify n fate)
+    ] |> combine |> lift (labelS (show n) . diagramFamily)
+
+mrng = [-2..3]
+
 -- Program
-main = (map (lift <| uncurry diagram) diagrams ++
+main = (map (lift <| uncurry diagram) diagrams
+        ++
+        -- (let lbl = label {defaultLabelCfg | heightFactor <- 0.2} . toText in
+        -- [ lbl "Hi" <~ (modFamily mrng <~ userHi ~ userDist)
+        -- , lbl "Lo" <~ (modFamily mrng <~ userLo ~ userDist)
+        -- , constant <| lbl "Fate vs" <| modFamily mrng [-1,0,2] fatevs
+        -- , constant <| lbl "Fate" <| modFamily mrng [-1,0,2] fate
+        -- ])
+        -- ++
         [ beside (plainText "Dice: ") <~ diceField
         , beside (plainText "Mod: ") <~ modField
         , beside (plainText "Lo: ") <~ loField
         , beside (plainText "Hi: ") <~ hiField
-        ])
+        ] ++
+        map typeFamily mrng ++
+        [constant <| spacer 100 100])
        |> combine |> lift (stack 10)
 
 --main = plainText <| show <| bounds <| ndk 2 d6
