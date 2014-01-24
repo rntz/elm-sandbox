@@ -8,40 +8,7 @@ import String
 import String (toInt)
 import Transform2D (Transform2D, matrix, identity)
 
--- Utilities
-infixl 0 ~>
-(~>) : Signal a -> (a -> b) -> Signal b
-x ~> f = lift f x
-
-fromMaybe : a -> Maybe a -> a
-fromMaybe x = maybe x id
-
-tau : Float
-tau = 2 * pi
-
-lg = logBase 2
-
-iterate : Int -> (a -> a) -> a -> a
-iterate n f x = if 0 == n then x
-                else f (iterate (n-1) f x)
-
-enumerate : [a] -> [(Int,a)]
-enumerate l = zip [0 .. length l - 1] l
-
-mapi : (Int -> a -> b) -> [a] -> [b]
-mapi f l = map (uncurry f) (enumerate l)
-
-takeWhile : (a -> Bool) -> [a] -> [a]
-takeWhile p l =
-    case l of [] -> []
-              x::xs -> if p x then x :: takeWhile p xs else []
-
-index : (a -> Bool) -> [a] -> Maybe Int
-index p =
-    let find i l = case l of [] -> Nothing
-                             x::xs -> if p x then Just i
-                                      else find (i+1) xs
-    in find 0
+import open Util
 
 -- Invariant: probabilities sum to 1.
 type Dist = Dict Int Float
@@ -223,26 +190,6 @@ graph w h cfg d =
                  , rest |> move (p*w, 0) ]
   in toList d |> foldr part (group []) |> move (-w/2, -h/2)
 
--- Labeling elements
--- widthFactor: Roughly, "how many characters maximum"
--- heightFactor: Fraction of element height text should be
-type LabelConfig = { widthFactor: Float
-                   , heightFactor: Float }
-
-defaultLabelCfg = { widthFactor = 5.0
-                  , heightFactor = 0.28 }
-
-label : LabelConfig -> Text -> Element -> Element
-label cfg txt elem =
-  let txtH = cfg.heightFactor * toFloat (heightOf elem)
-      lblW = floor <| txtH * cfg.widthFactor
-      spc = floor <| txtH * 0.8
-      lbl = txt |> Text.height txtH |> righted
-            |> container lblW (heightOf elem) midRight
-  in flow right [ lbl, spacer spc 1, elem ]
-
-labelS s elem = label defaultLabelCfg (toText s) elem
-
 
 -- Diagramming distributions
 diagram : String -> Dist -> Element
@@ -264,9 +211,6 @@ diagramFamily ds =
                                ]
         line (s,d) = label lblCfg (toText s |> bold) (bar d)
     in flow down <| map line ds
-
-stack : Int -> [Element] -> Element
-stack sp elts = flow down <| intersperse (spacer 1 sp) elts
 
 -- Controls
 (diceField, diceInput) = Input.field "Dice"

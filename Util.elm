@@ -3,7 +3,42 @@ module Util where
 import Automaton
 import Automaton (Automaton)
 
--- Utilities
+-- General utilities
+fromMaybe : a -> Maybe a -> a
+fromMaybe x = maybe x id
+
+tau : Float
+tau = 2 * pi
+
+lg = logBase 2
+
+iterate : Int -> (a -> a) -> a -> a
+iterate n f x = if 0 == n then x
+                else f (iterate (n-1) f x)
+
+enumerate : [a] -> [(Int,a)]
+enumerate l = zip [0 .. length l - 1] l
+
+mapi : (Int -> a -> b) -> [a] -> [b]
+mapi f l = map (uncurry f) (enumerate l)
+
+takeWhile : (a -> Bool) -> [a] -> [a]
+takeWhile p l =
+    case l of [] -> []
+              x::xs -> if p x then x :: takeWhile p xs else []
+
+index : (a -> Bool) -> [a] -> Maybe Int
+index p =
+    let find i l = case l of [] -> Nothing
+                             x::xs -> if p x then Just i
+                                      else find (i+1) xs
+    in find 0
+
+replicate : Int -> a -> [a]
+replicate n e = if 0 == n then []
+                else e :: replicate (n-1) e
+
+-- Signals and Automata
 infixl 0 ~>
 (~>) : Signal a -> (a -> b) -> Signal b
 x ~> f = lift f x
@@ -14,12 +49,9 @@ stateView init view update =
              (\event state -> let newState = update event state
                               in (newState, view newState))
 
+-- Elements
 stack : Int -> [Element] -> Element
 stack sp elts = flow down <| intersperse (spacer 1 sp) elts
-
-replicate : Int -> a -> [a]
-replicate n e = if 0 == n then []
-                else e :: replicate (n-1) e
 
 -- Labeling elements
 -- widthFactor: Roughly, "how many characters maximum"
