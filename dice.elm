@@ -253,7 +253,6 @@ typeFamily n =
 
 mrng = [-2..3]
 
-
 -- Program
 main = (map (lift <| uncurry diagram) diagrams
         ++

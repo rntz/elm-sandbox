@@ -1,8 +1,9 @@
 import Graphics.Input as Input
 import Automaton
-import Automaton (Automaton, (>>>), (<<<))
+import Automaton (Automaton)
 
 import open Util
+import AutomatonUtil
 
 import DynList (DynList)
 import DynList as DL
@@ -18,7 +19,7 @@ eltList newElt =
                           Nop -> dl
                           Create -> DL.pushNew newElt dl
                           Destroy i -> DL.remove i dl
-    in stateView DL.empty view update
+    in AutomatonUtil.stateView DL.empty view update
 
 main =
     let newElement : Int -> Element
@@ -26,3 +27,12 @@ main =
         elts = Automaton.run (eltList newElement) [] buttons.events
         display es = stack 10 (newButton :: es)
     in display <~ elts
+
+-- A more sophisticated example
+-- eltList : (Int -> Automaton a Element)
+--           -> Automaton (Either ButtonEvent a) [Element]
+
+-- eltListRaw : (Int -> Element) -> Signal ButtonEvent -> Signal [Element]
+-- eltListRaw newElt evts =
+--     let f evt dl
+--     in DL.get <~ foldp f DL.empty evts

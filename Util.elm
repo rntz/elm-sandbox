@@ -43,12 +43,6 @@ infixl 0 ~>
 (~>) : Signal a -> (a -> b) -> Signal b
 x ~> f = lift f x
 
-stateView : s -> (s -> o) -> (i -> s -> s) -> Automaton i o
-stateView init view update =
-    Automaton.hiddenState init
-             (\event state -> let newState = update event state
-                              in (newState, view newState))
-
 -- Elements
 stack : Int -> [Element] -> Element
 stack sp elts = flow down <| intersperse (spacer 1 sp) elts
