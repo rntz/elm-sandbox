@@ -1,12 +1,14 @@
 module DynList where
 
+import List
+
 type DynList a = { nextUid: Int, list: [(Int, a)] }
 
 empty : DynList a
 empty = { nextUid = 0, list = [] }
 
 get : DynList a -> [a]
-get dl = map snd dl.list
+get dl = List.map snd dl.list
 
 pushNew : (Int -> a) -> DynList a -> DynList a
 pushNew f dl = { dl | nextUid <- dl.nextUid + 1
@@ -19,3 +21,6 @@ push x dl = (dl.nextUid,
 
 remove : Int -> DynList a -> DynList a
 remove i dl = { dl | list <- filter (\(j,_) -> i /= j) dl.list }
+
+map : (a -> b) -> DynList a -> DynList b
+map f dl = {dl | list <- List.map (\(i,x) -> (i, f x)) dl.list}

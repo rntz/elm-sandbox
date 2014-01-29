@@ -44,8 +44,11 @@ infixl 0 ~>
 x ~> f = lift f x
 
 -- Elements
-stack : Int -> [Element] -> Element
-stack sp elts = flow down <| intersperse (spacer 1 sp) elts
+column : Int -> [Element] -> Element
+column sp elts = flow down <| intersperse (spacer 1 sp) elts
+
+row : Int -> [Element] -> Element
+row sp elts = flow right <| intersperse (spacer sp 1) elts
 
 -- Labeling elements
 -- widthFactor: Roughly, "how many characters maximum"
