@@ -1,5 +1,3 @@
-import Dict (Dict)
-import Dict as D
 import Graphics.Input as Input
 import Maybe
 import Regex (Regex)
@@ -9,61 +7,10 @@ import String (toInt)
 import Transform2D (Transform2D, matrix, identity)
 
 import open Util
-
--- Invariant: probabilities sum to 1.
-type Dist = Dict Int Float
-
--- Normalizes & deduplicates.
-fromList : [(Int, Float)] -> Dist
-fromList l = let total = sum <| map snd l
-                 conj (xv,xp) d =
-                     let pp = D.findWithDefault 0 xv d
-                     in D.insert xv (pp + (xp / total)) d
-             in l |> foldl conj D.empty
-
-toList : Dist -> [(Int, Float)]
-toList = D.toList
-
-always : Int -> Dist
-always x = fromList [(x,1)]
-
-uniform : [Int] -> Dist
-uniform xs = fromList <| map (\x -> (x,1)) xs
-
-chance : Int -> Dist -> Float
-chance x d = D.findWithDefault 0.0 x d
-
-{-
--- {Functor, Applicative, Monoid} Dist
-infixl 4 <$>
-infixl 4 <*>
-infixl 1 >>=
-
-pure = always
-f <$> l = map (\(a,p) -> (f a, p)) l
-fd <*> ad = let app (fv,fp) (av,ap) = (fv av, fp * ap)
-            in fd |> concatMap (\f -> map (app f) ad)
-k >>= f = k |> concatMap (\(res, resP) ->
-          f res |> map (\(x, xP) -> (x, xP * resP)))
--}
-
-
--- Dice
-plus : Dist -> Dist -> Dist
-plus x y = let app (xv,xp) (yv,yp) = (xv + yv, xp * yp)
-           in toList x |> concatMap (\xe ->
-              toList y |> map (app xe))
-              |> fromList
+import Dist
+import Dist (Dist, plus, always, uniform)
 
 modify x = plus (always x)
-
-mapDist : (Int -> Int) -> Dist -> Dist
-mapDist f d = toList d |> map (\(x,p) -> (f x, p)) |> fromList
-
-negate = mapDist (\x -> -x)
-
-sumDists : [Dist] -> Dist
-sumDists = foldr plus (always 0)
 
 d6 = uniform [1..6]
 dFate = uniform [-1..1]
@@ -85,7 +32,7 @@ classify : Overlay -> Int -> Int
 classify o i = fromMaybe (length o) <| index (\x -> i <= x) o
 
 overlay : Overlay -> Dist -> Dist
-overlay o = mapDist (classify o)
+overlay o = Dist.outMap (classify o)
 
 -- Overlays for low & hi stakes
 loOverlay = [6, 7, 10]
@@ -103,12 +50,12 @@ kindRes = "[0-9]+|F|\\[ *(?:[-+]? *[0-9]+[ ,]*)+\\]"
 intRe = Re.pattern "[-+]? *[0-9]+"
 
 parseDice : String -> Dist
-parseDice s = sumDists <| map parseDie <| Re.findAll dieRe s
+parseDice s = Dist.sum <| map parseDie <| Re.findAll dieRe s
 
 parseDie : Re.Match -> Dist
 parseDie m = let [signM, Just numS, kindM] = m.submatches
                  sign = case signM of
-                          Just "-" -> negate
+                          Just "-" -> Dist.negate
                           _ -> id
                  intify = fromMaybe 0 . toInt
                  num = intify numS
@@ -188,7 +135,7 @@ graph w h cfg d =
         in group [ rect (p*w) h |> filled (cfg.colors v) |> move ((p*w)/2, h/2)
                  , txtF
                  , rest |> move (p*w, 0) ]
-  in toList d |> foldr part (group []) |> move (-w/2, -h/2)
+  in Dist.toList d |> foldr part (group []) |> move (-w/2, -h/2)
 
 
 -- Diagramming distributions
