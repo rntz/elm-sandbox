@@ -1,5 +1,7 @@
 module Util where
 
+import open Either
+
 import Automaton
 import Automaton (Automaton)
 
@@ -42,6 +44,9 @@ replicate n e = if 0 == n then []
 infixl 0 ~>
 (~>) : Signal a -> (a -> b) -> Signal b
 x ~> f = lift f x
+
+mergeEither : Signal a -> Signal b -> Signal (Either a b)
+mergeEither l r = merge (Left <~ l) (Right <~ r)
 
 -- Elements
 column : Int -> [Element] -> Element

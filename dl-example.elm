@@ -40,9 +40,6 @@ newElement ident =
                       _ -> st
     in Moore.create 0 view update
 
-mergeEither : Signal a -> Signal b -> Signal (Either a b)
-mergeEither l r = merge (Left <~ l) (Right <~ r)
-
 main =
     let elts = eltList newElement
         display es = column 10 (newButton :: es)

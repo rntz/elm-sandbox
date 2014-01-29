@@ -270,6 +270,6 @@ main = (map (lift <| uncurry diagram) diagrams
         ] ++
         map typeFamily mrng ++
         [constant <| spacer 100 100])
-       |> combine |> lift (stack 10)
+       |> combine |> lift (column 10)
 
 --main = plainText <| show <| bounds <| ndk 2 d6
